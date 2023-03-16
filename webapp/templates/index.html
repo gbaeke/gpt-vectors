@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query baeke.info with Chat GPT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-primary ">
+        <div class="container">
+            <a class="navbar-brand text-white" href="#">Query baeke.info</a>
+        </div>
+    </nav>
+    <div class="container">
+        <form id="query-form">
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" name="query" id="query" placeholder="What would you like to know?">
+            </div>
+            <div class="text-center">
+                <button class="btn btn-primary submit-button" type="submit">Submit</button>
+                <div class="spinner-border text-primary d-none" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </form>
+        <div id="results" class="d-none">
+            <h3>Results:</h3>
+            <p><strong>URL (context):</strong> <a id="url" href="#" target="_blank"></a></p>
+            <p><strong>Response:</strong> <span id="response"></span></p>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/showdown/0.3.1/showdown.min.js"></script>
+    <script>
+        var converter = new Showdown.converter();
+        $("#query-form").submit(function(event) {
+            event.preventDefault();
+            $(".submit-button").attr("disabled", true); // Disable the submit button while the form is being submitted
+            $(".spinner-border").removeClass("d-none").show(); // Show the spinner animation
+            $.post("/query", $(this).serialize(), function(data) {
+                if(data.url != "") {
+                    $("#url").attr("href", data.url).text(data.url);
+                } else {
+                    $("#url").attr("href", "").text("No URL found");
+                }
+                $("#response").html(converter.makeHtml(data.response));
+                $("#results").removeClass("d-none");
+                $(".spinner-border").hide(); // Hide the spinner animation when the response is received
+                $(".submit-button").attr("disabled", false); // Re-enable the submit button
+            });
+        });
+    </script>
+</body>
+</html>
