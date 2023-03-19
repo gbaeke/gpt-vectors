@@ -15,6 +15,15 @@ pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
 
 pinecone.init(api_key=pinecone_api, environment=pinecone_env)
 
+if "blog-index" not in pinecone.list_indexes():
+    print("Index does not exist. Creating...")
+    pinecone.create_index("blog-index", 1536)
+else:
+    print("Index already exists. Deleting...")
+    pinecone.delete_index("blog-index")
+    print("Creating new index...")
+    pinecone.Index.create("blog-index", 1536)
+
 # set index; must exist
 index = pinecone.Index('blog-index')
 
@@ -32,7 +41,7 @@ post_texts = []
 pinecone_vectors = []
 for i, entry in enumerate(feed.entries[:50]):
     # report progress
-    print("Processing entry ", i, " of ", entries)
+    print("Create embedding for entry ", i, " of ", entries)
 
     r = requests.get(entry.link)
     soup = BeautifulSoup(r.text, 'html.parser')

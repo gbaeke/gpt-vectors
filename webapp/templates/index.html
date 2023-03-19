@@ -18,6 +18,13 @@
             <div class="input-group mb-3">
                 <input type="text" class="form-control" name="query" id="query" placeholder="What would you like to know?">
             </div>
+            <div class="mb-3">
+                <label for="model" class="form-label">Select a model:</label>
+                <select class="form-select" name="model" id="model">
+                    <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                    <option value="gpt-4">gpt-4</option>
+                </select>
+            </div>
             <div class="text-center">
                 <button class="btn btn-primary submit-button" type="submit">Submit</button>
                 <div class="spinner-border text-primary d-none" role="status">
@@ -28,6 +35,7 @@
         <div id="results" class="d-none">
             <h3>Results:</h3>
             <p><strong>URL (context):</strong> <a id="url" href="#" target="_blank"></a></p>
+            <p><span id="score_block"><strong>Score:</strong> <span id=score> </span></p>
             <p><strong>Response:</strong> <span id="response"></span></p>
         </div>
     </div>
@@ -41,10 +49,22 @@
             $(".submit-button").attr("disabled", true); // Disable the submit button while the form is being submitted
             $(".spinner-border").removeClass("d-none").show(); // Show the spinner animation
             $.post("/query", $(this).serialize(), function(data) {
+                console.log(data)
                 if(data.url != "") {
                     $("#url").attr("href", data.url).text(data.url);
+                    $("#score").text(data.score.toFixed(2));
+                    $("#score_block").show();
+                    
                 } else {
+                    // score is only 0 when url is ""
                     $("#url").attr("href", "").text("No URL found");
+
+                    // check anyway and hide score block
+                    if (data.score == 0) {
+                        $("#score_block").hide();
+                    } else {
+                        $("#score_block").show();
+                    }
                 }
                 $("#response").html(converter.makeHtml(data.response));
                 $("#results").removeClass("d-none");
