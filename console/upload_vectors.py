@@ -5,6 +5,18 @@ import numpy as np
 import openai
 import requests
 from bs4 import BeautifulSoup
+from retrying import retry
+
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+def create_embedding(article):
+    # vectorize with OpenAI text-emebdding-ada-002
+    embedding = openai.Embedding.create(
+        input=article,
+        model="text-embedding-ada-002"
+    )
+
+    return embedding["data"][0]["embedding"]
+
 
 # OpenAI API key
 openai.api_key = os.getenv('OPENAI_API_KEY')
@@ -47,14 +59,8 @@ for i, entry in enumerate(feed.entries[:50]):
     soup = BeautifulSoup(r.text, 'html.parser')
     article = soup.find('div', {'class': 'entry-content'}).text
 
-    # vectorize with OpenAI text-emebdding-ada-002
-    embedding = openai.Embedding.create(
-        input=article,
-        model="text-embedding-ada-002"
-    )
-
-    # print the embedding (length = 1536)
-    vector = embedding["data"][0]["embedding"]
+    # create embedding
+    vector = create_embedding(article)
 
     # append tuple to pinecone_vectors list
     pinecone_vectors.append((str(i), vector, {"url": entry.link}))
