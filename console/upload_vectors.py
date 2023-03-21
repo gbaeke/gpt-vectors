@@ -22,7 +22,7 @@ else:
     print("Index already exists. Deleting...")
     pinecone.delete_index("blog-index")
     print("Creating new index...")
-    pinecone.Index.create("blog-index", 1536)
+    pinecone.create_index("blog-index", 1536)
 
 # set index; must exist
 index = pinecone.Index('blog-index')
