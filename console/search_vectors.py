@@ -1,25 +1,18 @@
 import os
 import pinecone
 import openai
-import requests
-from bs4 import BeautifulSoup
 import tiktoken
 
-def tokens_from_string(string, encoding_name):
-        encoding = tiktoken.get_encoding(encoding_name)
-        num_tokens = len(encoding.encode(string))
-        return num_tokens
+# use cl100k_base tokenizer for gpt-3.5-turbo and gpt-4
+tokenizer = tiktoken.get_encoding('cl100k_base')
 
-# given an list of dictionaries with metadata, score, retrieve the item with the highest score and print metadata
-def get_highest_score_url(items):
-    highest_score = 0
-    highest_score_item = None
-    for item in items:
-        if item["score"] > highest_score:
-            highest_score = item["score"]
-            highest_score_item = item
 
-    return highest_score_item["metadata"]['url']
+def tiktoken_len(text):
+    tokens = tokenizer.encode(
+        text,
+        disallowed_special=()
+    )
+    return len(tokens)
 
 # get the Pinecone API key and environment
 pinecone_api = os.getenv('PINECONE_API_KEY')
@@ -50,20 +43,25 @@ while True:
         vector=query_vector,
         include_metadata=True)
 
-    
+    # create a list of urls from search_response['matches']['metadata']['url']
+    urls = [item["metadata"]['url'] for item in search_response['matches']]
 
-    # get url with highest score
-    url = get_highest_score_url(search_response['matches'])
+    # make urls unique
+    urls = list(set(urls))
 
-    # print url
-    print("Highest score url: ", url)
+    # create a list of texts from search_response['matches']['metadata']['text']
+    chunks = [item["metadata"]['text'] for item in search_response['matches']]
 
-    # get the content of the article
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    # combine texts into one string to insert in prompt
+    all_chunks = "\n".join(chunks)
 
-    # get the article
-    article = soup.find('div', {'class': 'entry-content'}).text
+    # print urls of the chunks
+    print("URLs:\n\n", urls)
+
+    # print the text number and first 50 characters of each text
+    print("\nChunks:\n")
+    for i, t in enumerate(chunks):
+        print(f"\nChunk {i}: {t[:50]}...")
 
     try:
         # openai chatgpt with article as context
@@ -71,11 +69,14 @@ while True:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                { "role": "system", "content": f"Provide your answer based on this context: {article}. Do not answer beyond this context!" },
-                { "role": "user", "content": your_query }
+                { "role": "system", "content":  "You are a thruthful assistant!" },
+                { "role": "user", "content": f"""Answer the following query based on the context below ---: {your_query}
+                                                    Do not answer beyond this context!
+                                                    ---
+                                                    {all_chunks}""" }
             ],
             temperature=0,
-            max_tokens=200
+            max_tokens=750
         )
 
         print(f"\n{response.choices[0]['message']['content']}")
