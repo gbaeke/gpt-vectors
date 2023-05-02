@@ -1,3 +1,10 @@
+import sys
+import pathlib
+
+# add helpers folder to path (required for Streamlit to find the helpers module)
+sys.path.append(str(pathlib.Path().absolute()) + "/helpers")
+
+
 import feedparser
 import os
 import pinecone
@@ -9,62 +16,63 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 import tiktoken
 import hashlib
 import streamlit as st
+import urllib.parse
+from helpers import tiktoken_len, create_embedding, crawl
+
 
 # check environment variables
 if os.getenv('PINECONE_API_KEY') is None:
-    st.stop("PINECONE_API_KEY not set. Please set this environment variable and restart the app.")
+    st.error("PINECONE_API_KEY not set. Please set this environment variable and restart the app.")
+    st.stop()
 if os.getenv('PINECONE_ENVIRONMENT') is None:
-    st.stop("PINECONE_ENVIRONMENT not set. Please set this environment variable and restart the app.")
+    st.error("PINECONE_ENVIRONMENT not set. Please set this environment variable and restart the app.")
+    st.stop()
 if os.getenv('OPENAI_API_KEY') is None:
-    st.stop("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
-
-# use cl100k_base tokenizer for gpt-3.5-turbo and gpt-4
-tokenizer = tiktoken.get_encoding('cl100k_base')
-
-# create the length function used by the RecursiveCharacterTextSplitter
-def tiktoken_len(text):
-    tokens = tokenizer.encode(
-        text,
-        disallowed_special=()
-    )
-    return len(tokens)
-
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
-def create_embedding(article):
-    # vectorize with OpenAI text-emebdding-ada-002
-    embedding = openai.Embedding.create(
-        input=article,
-        model="text-embedding-ada-002"
-    )
-
-    return embedding["data"][0]["embedding"]
-
-st.title("Upload blog feed to Pinecone 🔎")
-
-st.write("Click Upload to upload baeke.info posts to Pinecone in chunks.")
-
-url = st.text_input("RSS feed", "https://blog.baeke.info/feed/")
-
-# Parse the RSS feed with feedparser
-st.write("Parsing RSS feed: ", url)
-
-try:
-    feed = feedparser.parse(url)
-except Exception as e:
-    st.exception(e)
+    st.error("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
     st.stop()
 
-# get number of entries in feed
-entries = len(feed.entries)
-if entries == 0:
-    st.write("Error processing feed. Stopping...")
-    st.stop()
-st.write("Number of entries: ", entries)
+# app starts here
+st.title("Upload content to Pinecone 🔎")
+
+st.write("Click Upload to upload baeke.info or other posts to Pinecone in chunks.")
+
+url = st.text_input("Address", "https://blog.baeke.info/feed/")
+
+address_type = st.selectbox("Address type", ["RSS", "Crawl"])
+
+urls = []
+if address_type == "RSS":
+    # Parse the RSS feed with feedparser
+    st.write("Parsing RSS feed: ", url)
+
+    try:
+        urls = feedparser.parse(url)
+    except Exception as e:
+        st.exception(e)
+        st.stop()
+
+    # store all the entries in a pages list and display
+    # number of pages
+    pages = urls.entries
+    num_pages = len(pages)
+    if num_pages == 0:
+        st.write("Error processing feed. Stopping...")
+        st.stop()
+    st.write("Number of entries: ", num_pages)
+elif address_type == "Crawl":
+    # fill entries with all links until a certain depth
+    pages = crawl(url, 1)
+    num_pages = len(pages)
+    if num_pages == 0:
+        st.write("Error processing feed. Stopping...")
+        st.stop()
+    st.write("Number of entries: ", num_pages)
+    print(pages)
 
 with st.expander("Options", expanded=False):
     chunk_size = st.slider("Chunk size", 100, 600, 400)
     chunk_overlap = st.slider("Chunk overlap", 0, 60, 20)
-    blog_entries = st.slider("Blog entries", 1, entries, entries)
+    blog_entries = st.slider("Blog entries", 1, num_pages, num_pages)
     recreate = st.checkbox("Recreate index", True)
 
 if st.button("Upload"):
@@ -108,18 +116,22 @@ if st.button("Upload"):
     pinecone_vectors = []
 
     with st.expander("Logs", expanded=False):
-        for i, entry in enumerate(feed.entries[:50]):
-            r = requests.get(entry.link)
+        for i, entry in enumerate(pages[:blog_entries]):
+            page = entry['link']
+            r = requests.get(page)
             soup = BeautifulSoup(r.text, 'html.parser')
-            article = soup.text
+            if url == "https://blog.baeke.info/feed/":
+                article = soup.find("div", {"class": "entry-content"}).text
+            else:
+                article = soup.text
 
-            st.write("Processing URL: ", entry.link)
+            st.write("Processing URL: ", page)
 
             # create chunks
             chunks = text_splitter.split_text(article)
 
-            # create md5 hash of entry.link
-            url = entry.link
+            # create md5 hash of page
+            url = page
             url_hash = hashlib.md5(url.encode("utf-8"))       
             url_hash = url_hash.hexdigest()
 
@@ -135,7 +147,7 @@ if st.button("Upload"):
 
                 # add vector to pinecone_vectors list
                 st.write("\tAdding vector to pinecone_vectors list for chunk ", j+1, " of ", number_of_chunks)
-                pinecone_vectors.append((hash_j, vector, {"url": entry.link, "chunk-id": j, "text": chunk}))
+                pinecone_vectors.append((hash_j, vector, {"url": page, "chunk-id": j, "text": chunk}))
 
                 # upsert every 100 vectors
                 if len(pinecone_vectors) % 100 == 0:
@@ -144,7 +156,7 @@ if st.button("Upload"):
                     pinecone_vectors = []
             
             # update progress bar
-            my_bar.progress((i+1)/entries, text=progress_text + f" {i+1} of {entries}")
+            my_bar.progress((i+1)/blog_entries, text=progress_text + f" {i+1} of {blog_entries}")
 
     # if there are any vectors left, upsert them
     if len(pinecone_vectors) > 0:
