@@ -1,24 +1,26 @@
-For more information see this [blog post](https://blog.baeke.info/2023/03/16/pinecone-and-openai-magic-a-guide-to-finding-your-long-lost-blog-posts-with-vectorized-search-and-chatgpt/)
+For more information see this [blog post](https://blog.baeke.info/2023/03/16/pinecone-and-openai-magic-a-guide-to-finding-your-long-lost-blog-posts-with-vectorized-search-and-chatgpt/). This branch contains sample code to use pfvector instead of Pinecone.
 
-To run the sample web app:
+To run the sample web app with pgvector:
 
-- Get an account at Pinecone and create an index as explained in the blog post
+- Create a PostgreSQL server and enable the vector extension. I used Azure Databas for PostgreSQL flexible server, the lowest tier
+- Create a database on the server
 - Get an account at OpenAI
-- Set environment variables for Pinecone and your OpenAI key (see blog post)
-- From the `console` folder, use upload_vectors.py to upload blog posts as vectors to Pinecone. You can use another feed if you like.
-- From the `webapp` folder, run `app.py` (e.g. python3 app.py). This will start a web server on port 5000 allowing you to search for blog posts.
+- Set environment variables for OpenAI and the connection string to PostgreSQL
+
+```
+OPENAI_API_KEY=OPENAI_KEY
+CONNECTION_STRING="postgresql+psycopg2://user:password@FQDN_to_server:5432/database"
+
+```
 
 # Streamlit App
 
-The Streamlit app in the `streamlit` folder is a simple demo of how to use Pinecone with OpenAI's GPT-3 model. It allows you to enter a prompt and then generates a response using GPT-3. The app uses the Pinecone Python SDK to retrieve the most similar blog posts to the prompt and then uses the Pinecone REST API to retrieve the full text of the blog posts. The full text is then used as the context for the GPT-3 model.
+The Streamlit app in the `streamlit` folder is a simple demo of how to use pgvector with OpenAI's GPT model. It allows you to enter a query and then generates a response using GPT-3. The app uses LangChain PGVector to retrieve the most similar blog posts to the query. Relevant chunks from those posts are put into a prompt and set to the model which provides a response.
 
 It has both the upload and search code in one app. You can use it as a starting point for your own app.
 
 To run the app:
 
-- Get an account at Pinecone and create an index as explained in the blog post
-- Get an account at OpenAI
-- Set environment variables for Pinecone and your OpenAI key (see blog post)
-- From the `streamlit` folder, run `Query.py` (e.g. streamlit run app.py). This will start a web server allowing you to search for blog posts.
-- Ensure you install streamlit with `pip install streamlit`
+- Install Python packages with requirements.txt like so: `pip install -r requirements.txt`
+- From the `streamlit` folder, run `Query.py` (e.g. streamlit run Query.py). This will start a web server allowing you to upload posts via RSS and then query their contents.
 
