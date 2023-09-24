@@ -7,7 +7,6 @@ sys.path.append(str(pathlib.Path().absolute()) + "/helpers")
 
 import feedparser
 import os
-import pinecone
 import openai
 import requests
 from bs4 import BeautifulSoup
@@ -21,20 +20,14 @@ from helpers import tiktoken_len, create_embedding, crawl
 
 
 # check environment variables
-if os.getenv('PINECONE_API_KEY') is None:
-    st.error("PINECONE_API_KEY not set. Please set this environment variable and restart the app.")
-    st.stop()
-if os.getenv('PINECONE_ENVIRONMENT') is None:
-    st.error("PINECONE_ENVIRONMENT not set. Please set this environment variable and restart the app.")
-    st.stop()
 if os.getenv('OPENAI_API_KEY') is None:
     st.error("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
     st.stop()
 
 # app starts here
-st.title("Upload content to Pinecone 🔎")
+st.title("Upload content to vector db 🔎")
 
-st.write("Click Upload to upload baeke.info or other posts to Pinecone in chunks.")
+st.write("Click Upload to store contect in vector db")
 
 url = st.text_input("Address", "https://blog.baeke.info/feed/")
 
@@ -79,27 +72,7 @@ if st.button("Upload"):
     # OpenAI API key
     openai.api_key = os.getenv('OPENAI_API_KEY')
 
-    # get the Pinecone API key and environment
-    pinecone_api = os.getenv('PINECONE_API_KEY')
-    pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
-
-    pinecone.init(api_key=pinecone_api, environment=pinecone_env)
-
-    if "blog-index" not in pinecone.list_indexes():
-        st.write("Index does not exist. Creating...")
-        pinecone.create_index("blog-index", 1536, metadata_config= {"indexed": ["url", "chunk-id"]})
-    else:
-        st.write("Index already exists.")
-        if recreate:
-            st.write("Deleting existing index...")
-            pinecone.delete_index("blog-index")
-            st.write("Creating new index...")
-            pinecone.create_index("blog-index", 1536, metadata_config= {"indexed": ["url", "chunk-id"]})
-        else:
-            st.write("Reusing existing index.")
-
-    # set index; must exist
-    index = pinecone.Index('blog-index')
+    
 
     # create recursive text splitter
     text_splitter = RecursiveCharacterTextSplitter(
@@ -113,7 +86,7 @@ if st.button("Upload"):
     progress_text = "Upload in progress..."
     my_bar = st.progress(0, text=progress_text)
 
-    pinecone_vectors = []
+    vectors = []
 
     with st.expander("Logs", expanded=False):
         for i, entry in enumerate(pages[:blog_entries]):
