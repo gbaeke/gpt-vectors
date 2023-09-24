@@ -5,15 +5,23 @@ import pathlib
 sys.path.append(str(pathlib.Path().absolute()) + "/helpers")
 
 import os
-import pinecone
 import openai
 import tiktoken
 import streamlit as st
 from helpers import tiktoken_len, gpt
+from langchain.vectorstores import PGVector
+from langchain.embeddings.openai import OpenAIEmbeddings
+
+import dotenv
+
+dotenv.load_dotenv(dotenv_path='../.env')
 
 # check environment variables
 if os.getenv('OPENAI_API_KEY') is None:
     st.error("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
+    st.stop()
+if os.getenv("CONNECTION_STRING") is None:
+    st.error("CONNECTION_STRING not set. Please set this environment variable and restart the app.")
     st.stop()
 
 # create a title for the app
@@ -46,21 +54,42 @@ with st.expander("Options"):
 
 # create a submit button
 if st.button("Search"):
-    # perform Pinecone search and return the urls and chunks
-    urls, chunk_texts, all_chunks = search_pinecone(your_query, num_chunks)
+    # connection string to vector db
+    connection_string = os.getenv("CONNECTION_STRING")
+
+    # embeddings
+    embeddings = OpenAIEmbeddings()
+
+    # perform pgvector search and return the urls and chunks
+    db = PGVector(
+        collection_name="gpt_vectors",
+        connection_string=connection_string,
+        embedding_function=embeddings,
+           
+    )
     
+    docs_with_score = db.similarity_search_with_score(your_query)
+
+
     # show urls of the chunks in expanded section
     with st.expander("URLs", expanded=True):
-        for url in urls:
+        urls = [doc[0].metadata['url'] for doc in docs_with_score]
+
+        # Make URLs unique
+        unique_urls = list(set(urls))
+ 
+        for url in unique_urls:
             st.markdown(f"* {url}")    
 
     # show the chunks in collapsed section
     with st.expander("Chunks"):
+        chunk_texts = [doc[0].page_content for doc in docs_with_score]
         for i, t in enumerate(chunk_texts):
             # remove newlines from chunk
             tokens = tiktoken_len(t)
             t = t.replace("\n", " ")
             st.write("Chunk ", i, "(Tokens: ", tokens, ") - ", t[:50] + "...")
+
 
     # chatgpt with article as context
     with st.spinner("Summarizing..."):
@@ -68,7 +97,7 @@ if st.button("Search"):
         prompt = f"""Answer the following query based on the context below ---: {your_query}
                                                     Do not answer beyond this context!
                                                     ---
-                                                    {all_chunks}"""
+                                                    {chunk_texts}"""
 
         response_text, full_response = gpt(prompt, model, temperature, reply_tokens)
 

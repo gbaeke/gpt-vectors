@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 from retrying import retry
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import Document
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import PGVector
 import tiktoken
@@ -20,6 +21,9 @@ import streamlit as st
 import urllib.parse
 from helpers import tiktoken_len, crawl
 
+import dotenv
+
+dotenv.load_dotenv(dotenv_path='../../.env')
 
 # check environment variables
 if os.getenv('OPENAI_API_KEY') is None:
@@ -74,13 +78,13 @@ with st.expander("Options", expanded=False):
     chunk_size = st.slider("Chunk size", 100, 600, 400)
     chunk_overlap = st.slider("Chunk overlap", 0, 60, 20)
     blog_entries = st.slider("Blog entries", 1, num_pages, num_pages)
-    recreate = st.checkbox("Recreate index", True)
+    overwrite = st.checkbox("Overwrite existing entries", False)
 
 if st.button("Upload"):
     # OpenAI API key
     openai.api_key = os.getenv('OPENAI_API_KEY')
     connection_string = os.getenv("CONNECTION_STRING")
-    collection_name = url_hash
+    collection_name = "gpt_vectors"
 
     # create recursive text splitter
     text_splitter = RecursiveCharacterTextSplitter(
@@ -91,10 +95,10 @@ if st.button("Upload"):
     )
 
     # starting the upload process
-    progress_text = "Upload in progress..."
+    progress_text = "Creating docs..."
     my_bar = st.progress(0, text=progress_text)
 
-    all_chunks = []
+    all_docs = []
 
     with st.expander("Logs", expanded=False):
         for i, entry in enumerate(pages[:blog_entries]):
@@ -108,24 +112,27 @@ if st.button("Upload"):
 
             st.write("Processing URL: ", page)
 
-            # create chunks
-            chunks = text_splitter.split_text(article)
-
-            # add chunks to all_chunks
-            all_chunks.extend(chunks)
+            # create documents from split text
+            docs = text_splitter.create_documents([article], metadatas=[{"url": page}])        
+    
+            all_docs.extend(docs)
+           
                
             # update progress bar
             my_bar.progress((i+1)/blog_entries, text=progress_text + f" {i+1} of {blog_entries}")
 
-        # now we have all the chunks, we create embeddings with LangChain's pgvector
-        st.write("Creating embeddings...")
+        my_bar.progress(1.0, text="Docs created")
+
+    # now we have all the chunks, we create embeddings with LangChain's pgvector
+    with st.spinner("Creating embeddings..."):
         embeddings = OpenAIEmbeddings()
         db = PGVector.from_documents(
             embedding=embeddings,
-            documents=all_chunks,
+            documents=all_docs,
             collection_name=collection_name,
             connection_string=connection_string,
-            pre_delete_collection=True
+            pre_delete_collection=overwrite,
+
         )
 
-    my_bar.progress(1.0, text="Upload complete.")
+    
