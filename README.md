@@ -22,3 +22,4 @@ To run the app:
 - From the `streamlit` folder, run `Query.py` (e.g. streamlit run app.py). This will start a web server allowing you to search for blog posts.
 - Ensure you install streamlit with `pip install streamlit`
 
+Note: the branch **pgvector** contains the same app but uses pgvector instead.
