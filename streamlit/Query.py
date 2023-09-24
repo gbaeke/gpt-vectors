@@ -9,15 +9,9 @@ import pinecone
 import openai
 import tiktoken
 import streamlit as st
-from helpers import tiktoken_len, search_pinecone, gpt
+from helpers import tiktoken_len, gpt
 
 # check environment variables
-if os.getenv('PINECONE_API_KEY') is None:
-    st.error("PINECONE_API_KEY not set. Please set this environment variable and restart the app.")
-    st.stop()
-if os.getenv('PINECONE_ENVIRONMENT') is None:
-    st.error("PINECONE_ENVIRONMENT not set. Please set this environment variable and restart the app.")
-    st.stop()
 if os.getenv('OPENAI_API_KEY') is None:
     st.error("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
     st.stop()

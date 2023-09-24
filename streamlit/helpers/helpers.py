@@ -29,47 +29,6 @@ def tiktoken_len(text):
     )
     return len(tokens)
 
-
-def search_pinecone(query, chunks):
-    # get the Pinecone API key and environment
-    pinecone_api = os.getenv('PINECONE_API_KEY')
-    pinecone_env = os.getenv('PINECONE_ENVIRONMENT')
-
-    # inititalize and set index
-    pinecone.init(api_key=pinecone_api, environment=pinecone_env)
-    index = pinecone.Index('blog-index')
-
-    # vectorize query with openai
-    try:
-        query_vector = openai.Embedding.create(
-            input=query,
-            model="text-embedding-ada-002"
-        )["data"][0]["embedding"]
-    except Exception as e:
-        st.error(f"Error calling OpenAI Embedding API: {e}")
-        st.stop()
-
-    # search for the most similar vector in Pinecone
-    try:
-        search_response = index.query(
-            top_k=chunks,
-            vector=query_vector,
-            include_metadata=True)
-    except Exception as e:
-        st.error(f"Error calling Pinecone Index API: {e}")
-        st.stop()
-    
-    # create a unique list of urls from search_response
-    urls = [item["metadata"]['url'] for item in search_response['matches']]
-    urls = list(set(urls))
-
-    # create a list of texts from search_response and join them into one string
-    chunk_texts = [item["metadata"]['text'] for item in search_response['matches']]
-    all_chunks = "\n".join(chunk_texts)
-
-    return urls, chunk_texts, all_chunks
-
-
 def gpt(prompt, model, temperature, max_reply_tokens):
 
     response_text = None
@@ -91,16 +50,6 @@ def gpt(prompt, model, temperature, max_reply_tokens):
     
     return response_text, response
 
-
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
-def create_embedding(article):
-    # vectorize with OpenAI text-emebdding-ada-002
-    embedding = openai.Embedding.create(
-        input=article,
-        model="text-embedding-ada-002"
-    )
-
-    return embedding["data"][0]["embedding"]
 
 # get the html from a url
 def get_html(url):

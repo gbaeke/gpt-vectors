@@ -12,16 +12,21 @@ import requests
 from bs4 import BeautifulSoup
 from retrying import retry
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import PGVector
 import tiktoken
 import hashlib
 import streamlit as st
 import urllib.parse
-from helpers import tiktoken_len, create_embedding, crawl
+from helpers import tiktoken_len, crawl
 
 
 # check environment variables
 if os.getenv('OPENAI_API_KEY') is None:
     st.error("OPENAI_API_KEY not set. Please set this environment variable and restart the app.")
+    st.stop()
+if os.getenv("CONNECTION_STRING") is None:
+    st.error("CONNECTION_STRING not set. Please set this environment variable and restart the app.")
     st.stop()
 
 # app starts here
@@ -30,6 +35,9 @@ st.title("Upload content to vector db 🔎")
 st.write("Click Upload to store contect in vector db")
 
 url = st.text_input("Address", "https://blog.baeke.info/feed/")
+
+# create unique hash for url
+url_hash = hashlib.sha256(url.encode()).hexdigest()
 
 address_type = st.selectbox("Address type", ["RSS", "Crawl"])
 
@@ -71,8 +79,8 @@ with st.expander("Options", expanded=False):
 if st.button("Upload"):
     # OpenAI API key
     openai.api_key = os.getenv('OPENAI_API_KEY')
-
-    
+    connection_string = os.getenv("CONNECTION_STRING")
+    collection_name = url_hash
 
     # create recursive text splitter
     text_splitter = RecursiveCharacterTextSplitter(
@@ -86,7 +94,7 @@ if st.button("Upload"):
     progress_text = "Upload in progress..."
     my_bar = st.progress(0, text=progress_text)
 
-    vectors = []
+    all_chunks = []
 
     with st.expander("Logs", expanded=False):
         for i, entry in enumerate(pages[:blog_entries]):
@@ -103,37 +111,21 @@ if st.button("Upload"):
             # create chunks
             chunks = text_splitter.split_text(article)
 
-            # create md5 hash of page
-            url = page
-            url_hash = hashlib.md5(url.encode("utf-8"))       
-            url_hash = url_hash.hexdigest()
-
-            number_of_chunks = len(chunks)
-
-            # create embeddings for each chunk
-            for j, chunk in enumerate(chunks):
-                st.write("\tCreating embedding for chunk ", j+1, " of ", number_of_chunks)
-                vector = create_embedding(chunk)
-
-                # concatenate hash and j
-                hash_j = url_hash + str(j)
-
-                # add vector to pinecone_vectors list
-                st.write("\tAdding vector to pinecone_vectors list for chunk ", j+1, " of ", number_of_chunks)
-                pinecone_vectors.append((hash_j, vector, {"url": page, "chunk-id": j, "text": chunk}))
-
-                # upsert every 100 vectors
-                if len(pinecone_vectors) % 100 == 0:
-                    st.write("Upserting batch of 100 vectors...")
-                    upsert_response = index.upsert(vectors=pinecone_vectors)
-                    pinecone_vectors = []
-            
+            # add chunks to all_chunks
+            all_chunks.extend(chunks)
+               
             # update progress bar
             my_bar.progress((i+1)/blog_entries, text=progress_text + f" {i+1} of {blog_entries}")
 
-    # if there are any vectors left, upsert them
-    if len(pinecone_vectors) > 0:
-        upsert_response = index.upsert(vectors=pinecone_vectors)
-        pinecone_vectors = []
+        # now we have all the chunks, we create embeddings with LangChain's pgvector
+        st.write("Creating embeddings...")
+        embeddings = OpenAIEmbeddings()
+        db = PGVector.from_documents(
+            embedding=embeddings,
+            documents=all_chunks,
+            collection_name=collection_name,
+            connection_string=connection_string,
+            pre_delete_collection=True
+        )
 
     my_bar.progress(1.0, text="Upload complete.")
