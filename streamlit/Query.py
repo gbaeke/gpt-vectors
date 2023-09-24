@@ -68,7 +68,7 @@ if st.button("Search"):
            
     )
     
-    docs_with_score = db.similarity_search_with_score(your_query)
+    docs_with_score = db.similarity_search_with_score(your_query, k = num_chunks)
 
 
     # show urls of the chunks in expanded section
@@ -94,12 +94,13 @@ if st.button("Search"):
     # chatgpt with article as context
     with st.spinner("Summarizing..."):
     
+        open_ai_key = os.getenv('OPENAI_API_KEY')
         prompt = f"""Answer the following query based on the context below ---: {your_query}
                                                     Do not answer beyond this context!
                                                     ---
                                                     {chunk_texts}"""
 
-        response_text, full_response = gpt(prompt, model, temperature, reply_tokens)
+        response_text, full_response = gpt(prompt, model, temperature, reply_tokens, api_key=open_ai_key)
 
         # if full_response is None then stop
         if full_response is None:

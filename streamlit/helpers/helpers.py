@@ -29,7 +29,7 @@ def tiktoken_len(text):
     )
     return len(tokens)
 
-def gpt(prompt, model, temperature, max_reply_tokens):
+def gpt(prompt, model, temperature, max_reply_tokens, api_key):
 
     response_text = None
     response = None
@@ -41,7 +41,8 @@ def gpt(prompt, model, temperature, max_reply_tokens):
                 { "role": "user", "content": prompt }
             ],
             temperature=temperature,
-            max_tokens=max_reply_tokens
+            max_tokens=max_reply_tokens,
+            api_key=api_key
         )
 
         response_text = response.choices[0]['message']['content']
