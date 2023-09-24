@@ -2,4 +2,4 @@
 webapp-v2
 faiss_index
 __pycache__/
-.env
+*.env
