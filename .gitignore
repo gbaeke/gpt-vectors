@@ -1,3 +1,4 @@
 *.azcli
 webapp-v2
 faiss_index
+__pycache__/

@@ -10,6 +10,9 @@ import openai
 import tiktoken
 import streamlit as st
 from helpers import tiktoken_len, search_pinecone, gpt
+import dotenv
+
+dotenv.load_dotenv(dotenv_path='./.env')
 
 # check environment variables
 if os.getenv('PINECONE_API_KEY') is None:

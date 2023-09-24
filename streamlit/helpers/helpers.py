@@ -7,6 +7,12 @@ from retrying import retry
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
+import dotenv
+from urllib.parse import urlparse, urljoin
+
+dotenv.load_dotenv(dotenv_path='./.env')
+
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 tokenizer = tiktoken.get_encoding('cl100k_base')
 
@@ -116,7 +122,7 @@ def get_links(html, base_url):
         href = link.get('href')
         if href and not href.startswith('#'):
             parsed = urllib.parse.urlparse(href)
-            if not parsed.netloc or parsed.netloc == base_domain:
+            if parsed.scheme in ('http', 'https') and (not parsed.netloc or parsed.netloc == base_domain):
                 links.append(urllib.parse.urljoin(base_url, href))
     return links
 
@@ -132,3 +138,33 @@ def crawl(url, depth):
         crawl(link, depth-1)
 
     return pages
+
+def scrape_website(url, depth, base_url=None):
+    if depth <= 0:
+        return []
+
+    if not base_url:
+        base_url = urlparse(url).scheme + "://" + urlparse(url).netloc
+
+    internal_links = []
+    response = requests.get(url)
+    if response.status_code != 200:
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    for link in soup.find_all("a"):
+        href = link.get("href")
+        if not href:
+            continue
+
+        full_url = urljoin(base_url, href)
+        parsed_url = urlparse(full_url)
+
+        if parsed_url.netloc == urlparse(base_url).netloc and parsed_url.scheme in ["http", "https"] and "#" not in parsed_url.path:
+            internal_links.append({'link': full_url})
+
+    scraped_links = []
+    for link in internal_links:
+        scraped_links.extend(scrape_website(link["link"], depth - 1, base_url))
+
+    return internal_links + scraped_links

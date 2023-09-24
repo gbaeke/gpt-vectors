@@ -17,7 +17,11 @@ import tiktoken
 import hashlib
 import streamlit as st
 import urllib.parse
-from helpers import tiktoken_len, create_embedding, crawl
+from helpers import tiktoken_len, create_embedding, crawl, scrape_website
+
+import dotenv
+
+dotenv.load_dotenv(dotenv_path='../.env')
 
 
 # check environment variables
@@ -61,7 +65,7 @@ if address_type == "RSS":
     st.write("Number of entries: ", num_pages)
 elif address_type == "Crawl":
     # fill entries with all links until a certain depth
-    pages = crawl(url, 1)
+    pages = scrape_website(url, 2)
     num_pages = len(pages)
     if num_pages == 0:
         st.write("Error processing feed. Stopping...")
@@ -73,7 +77,7 @@ with st.expander("Options", expanded=False):
     chunk_size = st.slider("Chunk size", 100, 600, 400)
     chunk_overlap = st.slider("Chunk overlap", 0, 60, 20)
     blog_entries = st.slider("Blog entries", 1, num_pages, num_pages)
-    recreate = st.checkbox("Recreate index", True)
+    recreate = st.checkbox("Recreate index", False)
 
 if st.button("Upload"):
     # OpenAI API key
